@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>送迎表管理システム</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root {
+  --c-primary: #1D9E75;
+  --c-primary-light: #E1F5EE;
+  --c-primary-dark: #085041;
+  --c-accent: #378ADD;
+  --c-accent-light: #E6F1FB;
+  --c-evening: #6B48C8;
+  --c-evening-light: #EDE8FA;
+  --c-evening-dark: #3D2880;
+  --c-danger: #E24B4A;
+  --c-danger-light: #FCEBEB;
+  --c-warn: #BA7517;
+  --c-warn-light: #FAEEDA;
+  --c-gray-light: #F1EFE8;
+  --c-border: rgba(0,0,0,0.12);
+  --c-bg: #f4f5f7;
+  --c-surface: #ffffff;
+  --c-text: #1a1a1a;
+  --c-text-muted: #666;
+  --radius: 8px;
+  --c-theme: var(--c-primary);
+  --c-theme-light: var(--c-primary-light);
+  --c-theme-dark: var(--c-primary-dark);
+}
+body.evening-mode {
+  --c-theme: var(--c-evening);
+  --c-theme-light: var(--c-evening-light);
+  --c-theme-dark: var(--c-evening-dark);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;background:var(--c-bg);color:var(--c-text);font-size:14px;}
+
+/* ── App shell ── */
+.app{display:flex;flex-direction:column;height:100vh;}
+.header{background:var(--c-surface);border-bottom:1px solid var(--c-border);padding:0 14px;display:flex;align-items:center;gap:10px;height:50px;flex-shrink:0;}
+.header h1{font-size:15px;font-weight:700;color:var(--c-theme-dark);transition:color .3s;white-space:nowrap;}
+.header-date{font-size:12px;color:var(--c-text-muted);white-space:nowrap;}
+.header-actions{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:nowrap;}
+.top-tabs{display:flex;border-bottom:1px solid var(--c-border);padding:0 14px;background:var(--c-surface);flex-shrink:0;}
+.top-tab{padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--c-text-muted);white-space:nowrap;}
+.top-tab.active{color:var(--c-theme);border-bottom-color:var(--c-theme);font-weight:600;transition:color .3s,border-color .3s;}
+.main{display:flex;flex:1;overflow:hidden;}
+.sidebar{width:220px;background:var(--c-surface);border-right:1px solid var(--c-border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;}
+.content{flex:1;overflow:auto;padding:14px;}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:var(--radius);border:1px solid var(--c-border);background:var(--c-surface);font-size:12px;cursor:pointer;transition:background .15s;white-space:nowrap;font-family:inherit;}
+.btn:hover{background:var(--c-gray-light);}
+.btn-primary{background:var(--c-theme);color:#fff;border-color:var(--c-theme);}
+.btn-primary:hover{filter:brightness(.9);}
+.btn-danger{background:var(--c-danger-light);color:var(--c-danger);border-color:var(--c-danger);}
+.btn-warn{background:var(--c-warn-light);color:var(--c-warn);border-color:var(--c-warn);}
+.btn-sm{padding:3px 7px;font-size:11px;}
+.btn-copy{background:#FFF8E1;color:#B07800;border-color:#E6C84A;}
+.btn-paste{background:#E8F5E9;color:#2E7D32;border-color:#66BB6A;}
+.btn-paste:disabled{opacity:.4;cursor:default;}
+
+/* ── Sidebar ── */
+.panel{padding:10px 12px;border-bottom:1px solid var(--c-border);}
+.panel-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--c-text-muted);margin-bottom:6px;}
+.day-selector{display:flex;gap:3px;padding:8px;border-bottom:1px solid var(--c-border);}
+.day-btn{flex:1;padding:5px 2px;border-radius:5px;border:1px solid var(--c-border);background:none;font-size:11px;cursor:pointer;text-align:center;}
+.day-btn.active{background:var(--c-theme);color:#fff;border-color:var(--c-theme);transition:background .3s;}
+.user-pool{overflow-y:auto;flex:1;padding:6px;}
+.pool-item{padding:5px 8px;border-radius:6px;font-size:12px;cursor:grab;border:1px solid var(--c-border);background:var(--c-surface);margin-bottom:4px;}
+.pool-item:hover{background:var(--c-accent-light);}
+.pool-item:active{cursor:grabbing;}
+.staff-pool{padding:6px;max-height:200px;overflow-y:auto;}
+.staff-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:var(--radius);border:1px solid var(--c-border);background:var(--c-surface);margin-bottom:5px;cursor:grab;font-size:12px;}
+.staff-item:active{cursor:grabbing;opacity:.7;}
+.staff-item.excluded{opacity:.35;cursor:default;background:var(--c-gray-light);text-decoration:line-through;}
+.staff-badge{font-size:10px;padding:1px 6px;border-radius:10px;font-weight:500;white-space:nowrap;}
+.badge-driver{background:var(--c-accent-light);color:var(--c-accent);}
+.badge-helper{background:var(--c-primary-light);color:var(--c-primary-dark);}
+.staff-excl-btn{margin-left:auto;background:none;border:none;cursor:pointer;font-size:13px;color:var(--c-text-muted);padding:0 2px;line-height:1;}
+.staff-excl-btn:hover{color:var(--c-danger);}
+
+/* ── Session tabs ── */
+.session-tabs{display:flex;gap:0;margin-bottom:12px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--c-border);width:fit-content;}
+.session-tab{padding:7px 18px;font-size:13px;font-weight:500;cursor:pointer;background:var(--c-surface);color:var(--c-text-muted);border:none;font-family:inherit;transition:background .2s,color .2s;}
+.session-tab.morning.active{background:var(--c-primary);color:#fff;}
+.session-tab.evening.active{background:var(--c-evening);color:#fff;}
+.session-tab:not(.active):hover{background:var(--c-gray-light);}
+
+/* ── Copy/Paste bar ── */
+.copy-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--c-warn-light);border:1px solid #E6C84A;border-radius:var(--radius);margin-bottom:12px;font-size:12px;color:var(--c-warn);}
+.copy-bar.has-clip{background:#E8F5E9;border-color:#66BB6A;color:#2E7D32;}
+
+/* ── Vehicle card ── */
+.vehicle-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius);overflow:hidden;}
+.vehicle-card-header{padding:10px 14px;background:var(--c-theme-light);display:flex;align-items:center;gap:10px;transition:background .3s;}
+.vehicle-card-title{font-size:15px;font-weight:700;color:var(--c-theme-dark);transition:color .3s;flex:1;}
+.vehicle-card-meta{font-size:11px;color:var(--c-theme-dark);opacity:.8;}
+.crew-area{padding:8px 14px;background:#f9fffe;border-bottom:1px solid var(--c-border);display:flex;gap:14px;flex-wrap:wrap;align-items:center;}
+body.evening-mode .crew-area{background:#faf9ff;}
+.crew-slot{display:flex;align-items:center;gap:6px;font-size:12px;}
+.crew-label{color:var(--c-text-muted);width:36px;flex-shrink:0;}
+.crew-drop{border:1.5px dashed var(--c-border);border-radius:4px;padding:3px 8px;min-width:84px;font-size:12px;color:var(--c-text-muted);background:var(--c-surface);transition:border-color .15s;}
+.crew-drop.filled{border-style:solid;border-color:var(--c-theme);color:var(--c-theme-dark);background:var(--c-theme-light);}
+.crew-drop.drag-over{border-color:var(--c-accent);background:var(--c-accent-light);}
+.passenger-list{padding:10px 14px;display:flex;flex-wrap:wrap;gap:6px;min-height:48px;}
+.passenger-list.drag-over{background:var(--c-accent-light);}
+.passenger-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;background:var(--c-surface);border:1px solid var(--c-border);font-size:12px;}
+.passenger-chip.absent{opacity:.45;text-decoration:line-through;background:var(--c-danger-light);border-color:var(--c-danger);}
+.chip-order{font-size:10px;background:var(--c-gray-light);border-radius:8px;padding:0 4px;color:var(--c-text-muted);}
+.absence-btn{font-size:10px;padding:1px 5px;border-radius:3px;border:1px solid var(--c-border);background:none;cursor:pointer;color:var(--c-text-muted);font-family:inherit;}
+.absence-btn:hover{background:var(--c-danger-light);color:var(--c-danger);border-color:var(--c-danger);}
+.absence-btn.marked{background:var(--c-danger-light);color:var(--c-danger);border-color:var(--c-danger);}
+.chip-btn{background:none;border:none;cursor:pointer;font-size:11px;color:var(--c-text-muted);padding:0;line-height:1;font-family:inherit;}
+.chip-btn:hover{color:var(--c-danger);}
+
+/* ── Tables ── */
+.data-table{width:100%;border-collapse:collapse;background:var(--c-surface);border-radius:var(--radius);overflow:hidden;border:1px solid var(--c-border);}
+.data-table th{background:var(--c-gray-light);padding:8px 10px;text-align:left;font-size:12px;font-weight:600;border-bottom:1px solid var(--c-border);}
+.data-table td{padding:8px 10px;border-bottom:1px solid var(--c-border);font-size:13px;}
+.data-table tr:last-child td{border-bottom:none;}
+.data-table tr:hover td{background:var(--c-gray-light);}
+
+/* ── Forms ── */
+.form-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+input[type=text],input[type=date],select{padding:6px 10px;border:1px solid var(--c-border);border-radius:var(--radius);font-size:13px;font-family:inherit;}
+input:focus,select:focus{outline:none;border-color:var(--c-primary);}
+.day-cb{display:inline-flex;align-items:center;gap:2px;font-size:11px;margin-right:3px;}
+
+/* ── Upload ── */
+.upload-zone{border:2px dashed var(--c-border);border-radius:var(--radius);padding:28px;text-align:center;cursor:pointer;transition:all .15s;color:var(--c-text-muted);}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--c-primary);background:var(--c-primary-light);color:var(--c-primary-dark);}
+.upload-icon{font-size:30px;margin-bottom:6px;}
+
+/* ── Setting card ── */
+.setting-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius);padding:14px;margin-bottom:12px;}
+.setting-card h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--c-text-muted);margin-bottom:10px;}
+
+/* ── Modal ── */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000;}
+.modal{background:var(--c-surface);border-radius:12px;padding:22px;max-width:370px;width:92%;}
+.modal h3{font-size:16px;margin-bottom:12px;}
+.url-box{background:var(--c-gray-light);border-radius:6px;padding:8px 10px;font-size:11px;word-break:break-all;color:var(--c-text-muted);margin-bottom:10px;max-height:55px;overflow:hidden;}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
+
+/* ── Misc ── */
+.section-title{font-size:14px;font-weight:700;margin-bottom:10px;color:var(--c-theme-dark);}
+.alert{padding:9px 13px;border-radius:var(--radius);font-size:13px;margin-bottom:10px;}
+.alert-info{background:var(--c-accent-light);color:#0C447C;}
+.alert-success{background:var(--c-primary-light);color:var(--c-primary-dark);}
+.empty-state{text-align:center;padding:44px 20px;color:var(--c-text-muted);}
+.empty-icon{font-size:38px;margin-bottom:8px;}
+.toast{position:fixed;bottom:22px;right:22px;background:#1a1a1a;color:#fff;padding:9px 15px;border-radius:var(--radius);font-size:13px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none;}
+.toast.show{opacity:1;}
+
+/* ── Print ── */
+@media print{
+  .no-print{display:none!important;}
+  .app{height:auto;}
+  .main{flex-direction:column;}
+  .sidebar{display:none!important;}
+  .content{overflow:visible;padding:4px;}
+  .vehicle-card{break-inside:avoid;page-break-inside:avoid;margin-bottom:14px;}
+  .top-tabs,.session-tabs,.vehicle-tabs-wrap,.copy-bar{display:none!important;}
+  #printHeader{display:block!important;}
+  body{font-size:12px;}
+}
+@media print{
+  .print-driver .passenger-chip.absent{display:none!important;}
+}
+#printHeader{display:none;padding:6px 14px 12px;border-bottom:2px solid var(--c-theme);margin-bottom:12px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══ Header ══ -->
+<div class="header no-print">
+  <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+    <rect width="26" height="26" rx="6" fill="var(--c-theme)"/>
+    <rect x="3" y="15" width="20" height="7" rx="2" fill="white" opacity=".9"/>
+    <rect x="5" y="9" width="16" height="8" rx="1.5" fill="white" opacity=".7"/>
+    <circle cx="8.5" cy="22" r="1.8" fill="var(--c-theme)"/>
+    <circle cx="17.5" cy="22" r="1.8" fill="var(--c-theme)"/>
+    <rect x="7" y="11" width="4" height="3.5" rx=".5" fill="var(--c-theme)" opacity=".5"/>
+    <rect x="13" y="11" width="4" height="3.5" rx=".5" fill="var(--c-theme)" opacity=".5"/>
+  </svg>
+  <h1 id="headerTitle">送迎表</h1>
+  <span class="header-date" id="headerDate"></span>
+  <div class="header-actions">
+    <button class="btn btn-copy" onclick="copySchedule()" id="btnCopy">📋 コピー</button>
+    <button class="btn btn-paste" onclick="pasteSchedule()" id="btnPaste" disabled>📌 ペースト</button>
+    <button class="btn" onclick="showQRModal()">📱 QR共有</button>
+    <button class="btn" onclick="printMode('driver')">🚌 運転手用</button>
+    <button class="btn" onclick="printMode('office')">📋 控え印刷</button>
+  </div>
+</div>
+
+<!-- ══ Top Tabs ══ -->
+<div class="top-tabs no-print">
+  <div class="top-tab active" onclick="switchTab('schedule')" id="tab-schedule">📋 送迎表</div>
+  <div class="top-tab" onclick="switchTab('users')" id="tab-users">👤 利用者</div>
+  <div class="top-tab" onclick="switchTab('staff')" id="tab-staff">🧑‍✈️ スタッフ</div>
+  <div class="top-tab" onclick="switchTab('import')" id="tab-import">📂 取込</div>
+  <div class="top-tab" onclick="switchTab('settings')" id="tab-settings">⚙️ 設定</div>
+</div>
+
+<!-- ══ Main ══ -->
+<div class="main">
+
+  <!-- ── Sidebar ── -->
+  <div class="sidebar no-print" id="sidebar">
+    <div class="panel">
+      <div class="panel-title">表示日</div>
+      <div class="day-selector" id="daySelector"></div>
+      <input type="date" id="dateInput" style="width:100%;margin-top:6px;font-size:12px;" onchange="onDateChange()">
+    </div>
+    <div class="panel">
+      <div class="panel-title">未配車の利用者</div>
+    </div>
+    <div class="user-pool" id="userPool"></div>
+    <div class="panel" style="border-top:1px solid var(--c-border);border-bottom:none;">
+      <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>スタッフ</span>
+        <span style="font-size:9px;color:var(--c-text-muted);">×で本日のみ除外</span>
+      </div>
+      <div class="staff-pool" id="staffPool"></div>
+    </div>
+  </div>
+
+  <!-- ── Schedule ── -->
+  <div class="content" id="contentSchedule">
+    <div id="printHeader">
+      <div style="font-size:17px;font-weight:700;" id="printTitle"></div>
+      <div style="font-size:11px;color:#666;margin-top:2px;" id="printSubtitle"></div>
+    </div>
+
+    <!-- 朝夕タブ -->
+    <div class="session-tabs no-print">
+      <button class="session-tab morning active" id="stab-morning" onclick="switchSession('morning')">🌅 朝の送迎</button>
+      <button class="session-tab evening" id="stab-evening" onclick="switchSession('evening')">🌇 夕の送迎</button>
+    </div>
+
+    <!-- コピー状態バー -->
+    <div id="copyBar" class="copy-bar no-print" style="display:none;">
+      <span id="copyBarMsg"></span>
+    </div>
+
+    <!-- 車両カード（全車両を縦に表示） -->
+    <div id="vehicleCards"></div>
+  </div>
+
+  <!-- ── Users ── -->
+  <div class="content" id="contentUsers" style="display:none;">
+    <div class="section-title">利用者一覧</div>
+    <div class="form-row">
+      <input type="text" id="newUserName" placeholder="氏名" style="width:130px;">
+      <div style="display:flex;gap:3px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--c-text-muted);">曜日:</span>
+        <label class="day-cb"><input type="checkbox" value="0" class="nud"> 月</label>
+        <label class="day-cb"><input type="checkbox" value="1" class="nud"> 火</label>
+        <label class="day-cb"><input type="checkbox" value="2" class="nud"> 水</label>
+        <label class="day-cb"><input type="checkbox" value="3" class="nud"> 木</label>
+        <label class="day-cb"><input type="checkbox" value="4" class="nud"> 金</label>
+      </div>
+      <button class="btn btn-primary" onclick="addUser()">＋ 追加</button>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>氏名</th><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th></th></tr></thead>
+      <tbody id="userTableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- ── Staff ── -->
+  <div class="content" id="contentStaff" style="display:none;">
+    <div class="section-title">スタッフ一覧</div>
+    <div class="form-row">
+      <input type="text" id="newStaffName" placeholder="氏名" style="width:130px;">
+      <select id="newStaffRole">
+        <option value="driver">運転手</option>
+        <option value="helper">添乗員</option>
+      </select>
+      <button class="btn btn-primary" onclick="addStaff()">＋ 追加</button>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>氏名</th><th>役割</th><th></th></tr></thead>
+      <tbody id="staffTableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- ── Import ── -->
+  <div class="content" id="contentImport" style="display:none;">
+    <div class="section-title">Excelからデータ取込</div>
+    <div class="alert alert-info">📌 ヘッダー行に <b>氏名, 月, 火, 水, 木, 金</b> を含むExcel/CSVを読み込みます。曜日列は <b>○ または 1</b> で利用を示します。</div>
+    <div class="upload-zone" id="uploadZone"
+      onclick="document.getElementById('fileInput').click()"
+      ondrop="handleDrop(event)" ondragover="event.preventDefault()">
+      <div class="upload-icon">📂</div>
+      <div>クリックまたはファイルをドロップ</div>
+      <div style="font-size:12px;margin-top:4px;">.xlsx / .xls / .csv</div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleFileInput(event)">
+    <div id="importPreview" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- ── Settings ── -->
+  <div class="content" id="contentSettings" style="display:none;">
+    <div class="section-title">設定</div>
+
+    <div class="setting-card">
+      <h4>🏢 事業所名</h4>
+      <div class="form-row">
+        <input type="text" id="settingFacilityName" placeholder="例: ○○デイサービス" style="width:240px;" oninput="saveSetting('facilityName',this.value)">
+        <span style="font-size:12px;color:var(--c-text-muted);">印刷タイトルに使用</span>
+      </div>
+    </div>
+
+    <div class="setting-card">
+      <h4>🚗 車両管理</h4>
+      <div class="form-row">
+        <input type="text" id="newVehicleName" placeholder="車両名（例: 第1号車）" style="width:170px;">
+        <input type="text" id="newVehicleNote" placeholder="備考（例: 8人乗り）" style="width:130px;">
+        <button class="btn btn-primary" onclick="addVehicle()">＋ 追加</button>
+      </div>
+      <table class="data-table" id="vehicleTable">
+        <thead><tr><th>車両名</th><th>備考</th><th></th></tr></thead>
+        <tbody id="vehicleTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="setting-card">
+      <h4>💾 データ操作</h4>
+      <div class="form-row">
+        <button class="btn" onclick="exportData()">📤 エクスポート</button>
+        <button class="btn" onclick="document.getElementById('importDataFile').click()">📥 インポート</button>
+        <input type="file" id="importDataFile" accept=".json" style="display:none;" onchange="importData(event)">
+        <button class="btn btn-danger" onclick="clearAllData()">🗑 全削除</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ══ QR Modal ══ -->
+<div class="modal-backdrop" id="qrModal" style="display:none;" onclick="hideQRModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>📱 添乗員スマホに共有</h3>
+    <p style="font-size:12px;color:var(--c-text-muted);margin-bottom:10px;">QRコードを読むと閲覧専用の送迎表が開きます。氏名は外部に送信されません。</p>
+    <div id="qrcode" style="display:flex;justify-content:center;margin-bottom:10px;"></div>
+    <div class="url-box" id="shareURL"></div>
+    <button class="btn" onclick="copyShareURL()">📋 URLをコピー</button>
+    <div class="modal-footer"><button class="btn" onclick="hideQRModal()">閉じる</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// State
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const DAY_NAMES = ['月','火','水','木','金'];
+
+/*
+  assignments[date][session][vehicleId] = {
+    driver: staffId|null,
+    helper: staffId|null,
+    passengers: [userId, ...],
+    absent: [userId, ...]
+  }
+  excludedStaff[date] = [staffId, ...]   ← 当日のみ除外
+  clipboard = { session, data: { vehicleId: {...} } } | null
+*/
+let state = {
+  users: [],
+  staff: [],
+  vehicles: [],
+  assignments: {},
+  excludedStaff: {},
+  clipboard: null,
+  settings: { facilityName: '' },
+  currentDate: todayStr(),
+  currentSession: 'morning',
+  currentVehicle: null
+};
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function dayOfWeek(ds){
+  const w = new Date(ds+'T00:00:00').getDay();
+  return (w===0||w===6) ? -1 : w-1;
+}
+
+// ━━ localStorage ━━
+function saveState(){
+  try{ localStorage.setItem('sougei_v3', JSON.stringify(state)); }catch(e){}
+}
+function loadState(){
+  try{
+    const s = localStorage.getItem('sougei_v3');
+    if(s) Object.assign(state, JSON.parse(s));
+  }catch(e){}
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 初期化
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+window.onload = function(){
+  if(location.hash.startsWith('#view=')){ checkViewerMode(); return; }
+  loadState();
+
+  // サンプルデータ（初回のみ）
+  if(!state.users.length){
+    state.users=[
+      {id:'u1',name:'田中 花子',days:[0,1,2,3,4]},
+      {id:'u2',name:'鈴木 一郎',days:[0,2,4]},
+      {id:'u3',name:'山田 春子',days:[1,3]},
+      {id:'u4',name:'佐藤 健二',days:[0,1,2,3,4]},
+      {id:'u5',name:'伊藤 美咲',days:[2,3,4]},
+    ];
+  }
+  if(!state.staff.length){
+    state.staff=[
+      {id:'s1',name:'中村 運転',role:'driver'},
+      {id:'s2',name:'小林 添乗',role:'helper'},
+      {id:'s3',name:'加藤 太郎',role:'driver'},
+    ];
+  }
+  if(!state.vehicles.length){
+    state.vehicles=[
+      {id:'v1',name:'第1号車',note:'8人乗り'},
+      {id:'v2',name:'第2号車',note:''},
+    ];
+  }
+  if(!state.excludedStaff) state.excludedStaff={};
+  if(!state.settings) state.settings={facilityName:''};
+
+  document.getElementById('dateInput').value = state.currentDate;
+  document.getElementById('settingFacilityName').value = state.settings.facilityName||'';
+
+  updateHeaderDate();
+  renderDaySelector();
+  applySessionTheme();
+  renderAll();
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 朝夕
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function switchSession(s){
+  state.currentSession = s;
+  document.getElementById('stab-morning').classList.toggle('active', s==='morning');
+  document.getElementById('stab-evening').classList.toggle('active', s==='evening');
+  applySessionTheme();
+  renderAll();
+  saveState();
+}
+function applySessionTheme(){
+  document.body.classList.toggle('evening-mode', state.currentSession==='evening');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 日付
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function updateHeaderDate(){
+  const d = new Date(state.currentDate+'T00:00:00');
+  const dow = dayOfWeek(state.currentDate);
+  const dl = dow>=0 ? DAY_NAMES[dow] : '土日';
+  document.getElementById('headerDate').textContent =
+    `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${dl}）`;
+}
+function onDateChange(){
+  state.currentDate = document.getElementById('dateInput').value;
+  updateHeaderDate(); renderDaySelector(); renderAll(); saveState();
+}
+function renderDaySelector(){
+  const ds = document.getElementById('daySelector');
+  const today = new Date(state.currentDate+'T00:00:00');
+  const dow = today.getDay()===0 ? 6 : today.getDay()-1;
+  const mon = new Date(today); mon.setDate(today.getDate()-dow);
+  ds.innerHTML='';
+  for(let i=0;i<5;i++){
+    const d2=new Date(mon); d2.setDate(mon.getDate()+i);
+    const ds2=d2.toISOString().slice(0,10);
+    const b=document.createElement('button');
+    b.className='day-btn'+(ds2===state.currentDate?' active':'');
+    b.textContent=DAY_NAMES[i];
+    b.onclick=()=>{ state.currentDate=ds2; document.getElementById('dateInput').value=ds2; updateHeaderDate(); renderDaySelector(); renderAll(); saveState(); };
+    ds.appendChild(b);
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// アサインメント取得
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function getAssignment(vehicleId, date, session){
+  date=date||state.currentDate;
+  session=session||state.currentSession;
+  if(!state.assignments[date]) state.assignments[date]={};
+  if(!state.assignments[date][session]) state.assignments[date][session]={};
+  if(!state.assignments[date][session][vehicleId]){
+    state.assignments[date][session][vehicleId]={driver:null,helper:null,passengers:[],absent:[]};
+  }
+  return state.assignments[date][session][vehicleId];
+}
+
+function allAssignedPassengers(date, session){
+  date=date||state.currentDate;
+  session=session||state.currentSession;
+  const s=new Set();
+  const d=state.assignments[date]?.[session];
+  if(d) Object.values(d).forEach(a=>a.passengers.forEach(p=>s.add(p)));
+  return s;
+}
+
+function todayUsers(){
+  const dow=dayOfWeek(state.currentDate);
+  if(dow<0) return [];
+  return state.users.filter(u=>u.days.includes(dow));
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// コピー & ペースト
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function copySchedule(){
+  const date=state.currentDate;
+  const sess=state.currentSession;
+  const sessData=state.assignments[date]?.[sess];
+
+  // 現在のセッションのデータをディープコピー（なくてもOK、空でコピー）
+  state.clipboard={
+    fromDate: date,
+    session: sess,
+    data: sessData ? JSON.parse(JSON.stringify(sessData)) : {}
+  };
+  saveState();
+  updateCopyBar();
+  updatePasteBtn();
+  toast(`${date} の${sess==='morning'?'朝':'夕'}送迎をコピーしました`);
+}
+
+function pasteSchedule(){
+  if(!state.clipboard){ toast('コピーされたデータがありません'); return; }
+  const {fromDate, session, data} = state.clipboard;
+  const toDate=state.currentDate;
+  const toSess=state.currentSession;
+
+  if(fromDate===toDate && session===toSess){
+    toast('同じ日付・セッションにはペーストできません');
+    return;
+  }
+
+  const fromLabel=`${fromDate}（${session==='morning'?'朝':'夕'}）`;
+  const toLabel=`${toDate}（${toSess==='morning'?'朝':'夕'}）`;
+  if(!confirm(`${fromLabel} のデータを ${toLabel} にペーストしますか？\n欠席情報はリセットされます。現在のデータは上書きされます。`)) return;
+
+  if(!state.assignments[toDate]) state.assignments[toDate]={};
+  const copied = JSON.parse(JSON.stringify(data));
+  // 欠席リセット、passenger リストはそのまま引き継ぐ
+  Object.values(copied).forEach(a=>{ a.absent=[]; });
+  state.assignments[toDate][toSess]=copied;
+
+  saveState(); renderAll();
+  toast(`${fromLabel} → ${toLabel} にペーストしました`);
+  updateCopyBar();
+}
+
+function updateCopyBar(){
+  const bar=document.getElementById('copyBar');
+  const msg=document.getElementById('copyBarMsg');
+  if(!state.clipboard){ bar.style.display='none'; return; }
+  const {fromDate,session}=state.clipboard;
+  bar.style.display='flex';
+  bar.className='copy-bar has-clip no-print';
+  msg.textContent=`📋 クリップボード: ${fromDate}（${session==='morning'?'朝':'夕'}送迎）をコピー中 — 貼り付けたい日付・セッションに切り替えてペーストボタンを押してください`;
+}
+function updatePasteBtn(){
+  document.getElementById('btnPaste').disabled = !state.clipboard;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// スタッフ当日除外
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function getExcluded(){
+  if(!state.excludedStaff[state.currentDate]) state.excludedStaff[state.currentDate]=[];
+  return state.excludedStaff[state.currentDate];
+}
+function isExcluded(staffId){ return getExcluded().includes(staffId); }
+function toggleExclude(staffId){
+  const ex=getExcluded();
+  if(ex.includes(staffId)){
+    state.excludedStaff[state.currentDate]=ex.filter(id=>id!==staffId);
+    toast('スタッフを本日の除外から解除しました');
+  } else {
+    ex.push(staffId);
+    // アサイン済みなら外す
+    if(state.assignments[state.currentDate]){
+      Object.values(state.assignments[state.currentDate]).forEach(sess=>{
+        Object.values(sess).forEach(a=>{
+          if(a.driver===staffId) a.driver=null;
+          if(a.helper===staffId) a.helper=null;
+        });
+      });
+    }
+    toast('スタッフを本日のみ除外しました');
+  }
+  saveState(); renderAll();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// レンダリング
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderAll(){
+  renderUserPool();
+  renderStaffPool();
+  renderAllVehicleCards();
+  renderUserTable();
+  renderStaffTable();
+  renderVehicleTableSettings();
+  updateCopyBar();
+  updatePasteBtn();
+}
+
+// ── ユーザープール ──
+function renderUserPool(){
+  const pool=document.getElementById('userPool');
+  const users=todayUsers();
+  const assigned=allAssignedPassengers();
+  pool.innerHTML='';
+  const un=users.filter(u=>!assigned.has(u.id));
+  if(!un.length){
+    pool.innerHTML=`<div style="font-size:12px;color:var(--c-text-muted);padding:6px;">${users.length?'全員配車済み ✅':'本日対象の利用者なし'}</div>`;
+    return;
+  }
+  un.forEach(u=>{
+    const el=document.createElement('div');
+    el.className='pool-item';
+    el.draggable=true;
+    el.textContent=u.name;
+    el.addEventListener('dragstart',e=>{
+      e.dataTransfer.setData('userId',u.id);
+      e.dataTransfer.setData('type','passenger');
+    });
+    pool.appendChild(el);
+  });
+}
+
+// ── スタッフプール ──
+function renderStaffPool(){
+  const pool=document.getElementById('staffPool');
+  pool.innerHTML='';
+  state.staff.forEach(s=>{
+    const excl=isExcluded(s.id);
+    const el=document.createElement('div');
+    el.className='staff-item'+(excl?' excluded':'');
+    el.innerHTML=`
+      <span>${esc(s.name)}</span>
+      <span class="staff-badge ${s.role==='driver'?'badge-driver':'badge-helper'}">${s.role==='driver'?'運転':'添乗'}</span>
+      <button class="staff-excl-btn" onclick="toggleExclude('${s.id}')" title="${excl?'除外を解除':'本日のみ除外'}">
+        ${excl?'↩':'×'}
+      </button>`;
+    if(!excl){
+      el.draggable=true;
+      el.addEventListener('dragstart',e=>{
+        e.dataTransfer.setData('staffId',s.id);
+        e.dataTransfer.setData('type','staff');
+        e.dataTransfer.setData('role',s.role);
+      });
+    }
+    pool.appendChild(el);
+  });
+}
+
+// ── 全車両カード一覧 ──
+function renderAllVehicleCards(){
+  const container=document.getElementById('vehicleCards');
+  container.innerHTML='';
+  if(!state.vehicles.length){
+    container.innerHTML='<div class="empty-state"><div class="empty-icon">🚗</div><div>設定タブで車両を登録してください</div></div>';
+    return;
+  }
+  state.vehicles.forEach(v=>container.appendChild(buildVehicleCard(v)));
+}
+
+function buildVehicleCard(v){
+  const asgn=getAssignment(v.id);
+  const presentCount=asgn.passengers.filter(p=>!asgn.absent.includes(p)).length;
+  const sessLabel=state.currentSession==='morning'?'朝送迎':'夕送迎';
+  const wrap=document.createElement('div');
+  wrap.className='vehicle-card';
+  wrap.style.marginBottom='12px';
+  wrap.innerHTML=`
+    <div class="vehicle-card-header">
+      <span style="font-size:20px;">${state.currentSession==='morning'?'🌅':'🌇'}</span>
+      <span class="vehicle-card-title">🚗 ${esc(v.name)}</span>
+      <span class="vehicle-card-meta">${esc(v.note||'')}${v.note?' | ':''}${sessLabel} | 乗車 ${presentCount}名</span>
+    </div>
+    <div class="crew-area">
+      <div class="crew-slot">
+        <span class="crew-label">運転手</span>
+        <div class="crew-drop ${asgn.driver?'filled':''}" data-vid="${v.id}" data-role="driver"
+          ondragover="crewDragOver(event)" ondragleave="crewDragLeave(event)" ondrop="crewDrop(event)">
+          ${asgn.driver?esc(staffName(asgn.driver)):'ドラッグ'}
+        </div>
+        ${asgn.driver?`<button class="btn btn-sm" onclick="clearCrew('${v.id}','driver')">✕</button>`:''}
+      </div>
+      <div class="crew-slot">
+        <span class="crew-label">添乗員</span>
+        <div class="crew-drop ${asgn.helper?'filled':''}" data-vid="${v.id}" data-role="helper"
+          ondragover="crewDragOver(event)" ondragleave="crewDragLeave(event)" ondrop="crewDrop(event)">
+          ${asgn.helper?esc(staffName(asgn.helper)):'ドラッグ'}
+        </div>
+        ${asgn.helper?`<button class="btn btn-sm" onclick="clearCrew('${v.id}','helper')">✕</button>`:''}
+      </div>
+    </div>
+    <div class="passenger-list" id="plist-${v.id}"
+      ondragover="pListDragOver(event,'${v.id}')"
+      ondragleave="pListDragLeave(event,'${v.id}')"
+      ondrop="pListDrop(event,'${v.id}')">
+      ${asgn.passengers.map((uid,i)=>passengerChipHTML(uid,v.id,asgn,i+1)).join('')}
+      ${!asgn.passengers.length?'<span style="font-size:11px;color:var(--c-text-muted);align-self:center;">利用者をドラッグして追加</span>':''}
+    </div>
+  `;
+  return wrap;
+}
+
+function passengerChipHTML(uid,vid,asgn,order){
+  const u=state.users.find(x=>x.id===uid);
+  if(!u) return '';
+  const absent=asgn.absent.includes(uid);
+  return `<span class="passenger-chip ${absent?'absent':''}" draggable="true"
+    ondragstart="chipDragStart(event,'${uid}','${vid}')">
+    <span class="chip-order">${order}</span>
+    <span>${esc(u.name)}</span>
+    <button class="absence-btn ${absent?'marked':''}" onclick="toggleAbsent('${vid}','${uid}')">${absent?'欠席':'出席'}</button>
+    <button class="chip-btn" onclick="removePassenger('${vid}','${uid}')">✕</button>
+  </span>`;
+}
+
+function staffName(id){ return state.staff.find(x=>x.id===id)?.name||'不明'; }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Drag & Drop
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function pListDragOver(e,vid){ e.preventDefault(); document.getElementById('plist-'+vid)?.classList.add('drag-over'); }
+function pListDragLeave(e,vid){ document.getElementById('plist-'+vid)?.classList.remove('drag-over'); }
+function pListDrop(e,vid){
+  e.preventDefault();
+  document.getElementById('plist-'+vid)?.classList.remove('drag-over');
+  const type=e.dataTransfer.getData('type');
+  if(type==='passenger') addPassengerToVehicle(e.dataTransfer.getData('userId'),vid);
+  else if(type==='chip'){
+    const uid=e.dataTransfer.getData('userId');
+    const fromVid=e.dataTransfer.getData('fromVid');
+    if(fromVid!==vid){ removePassenger(fromVid,uid,true); addPassengerToVehicle(uid,vid); }
+  }
+}
+function addPassengerToVehicle(uid,vid){
+  // 全車両から除去
+  state.vehicles.forEach(v=>{
+    const a=getAssignment(v.id);
+    a.passengers=a.passengers.filter(p=>p!==uid);
+    a.absent=a.absent.filter(p=>p!==uid);
+  });
+  getAssignment(vid).passengers.push(uid);
+  saveState(); renderAll();
+}
+function chipDragStart(e,uid,fromVid){
+  e.dataTransfer.setData('type','chip');
+  e.dataTransfer.setData('userId',uid);
+  e.dataTransfer.setData('fromVid',fromVid);
+}
+function crewDragOver(e){ e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function crewDragLeave(e){ e.currentTarget.classList.remove('drag-over'); }
+function crewDrop(e){
+  e.preventDefault();
+  const el=e.currentTarget;
+  el.classList.remove('drag-over');
+  if(e.dataTransfer.getData('type')!=='staff') return;
+  const staffId=e.dataTransfer.getData('staffId');
+  if(isExcluded(staffId)){ toast('本日除外中のスタッフです'); return; }
+  getAssignment(el.dataset.vid)[el.dataset.role]=staffId;
+  saveState(); renderAll();
+}
+function clearCrew(vid,slot){ getAssignment(vid)[slot]=null; saveState(); renderAll(); }
+function removePassenger(vid,uid,silent){
+  const a=getAssignment(vid);
+  a.passengers=a.passengers.filter(p=>p!==uid);
+  a.absent=a.absent.filter(p=>p!==uid);
+  if(!silent){ saveState(); renderAll(); }
+}
+function toggleAbsent(vid,uid){
+  const a=getAssignment(vid);
+  if(a.absent.includes(uid)) a.absent=a.absent.filter(p=>p!==uid);
+  else a.absent.push(uid);
+  saveState(); renderAll();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 利用者管理
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderUserTable(){
+  const tb=document.getElementById('userTableBody'); if(!tb) return;
+  tb.innerHTML='';
+  state.users.forEach(u=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${esc(u.name)}</td>`+
+      DAY_NAMES.map((_,i)=>`<td style="text-align:center;"><input type="checkbox" ${u.days.includes(i)?'checked':''} onchange="toggleUserDay('${u.id}',${i},this.checked)"></td>`).join('')+
+      `<td><button class="btn btn-sm btn-danger" onclick="removeUser('${u.id}')">削除</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+function addUser(){
+  const name=document.getElementById('newUserName').value.trim();
+  if(!name){ toast('氏名を入力してください'); return; }
+  const days=[...document.querySelectorAll('.nud:checked')].map(el=>parseInt(el.value));
+  state.users.push({id:'u'+Date.now(),name,days});
+  document.getElementById('newUserName').value='';
+  document.querySelectorAll('.nud').forEach(el=>el.checked=false);
+  saveState(); renderAll(); toast('利用者を追加しました');
+}
+function removeUser(id){
+  if(!confirm('削除しますか？')) return;
+  state.users=state.users.filter(u=>u.id!==id);
+  Object.values(state.assignments).forEach(day=>
+    Object.values(day).forEach(sess=>
+      Object.values(sess).forEach(a=>{
+        a.passengers=a.passengers.filter(p=>p!==id);
+        a.absent=a.absent.filter(p=>p!==id);
+      })
+    )
+  );
+  saveState(); renderAll();
+}
+function toggleUserDay(uid,di,checked){
+  const u=state.users.find(x=>x.id===uid); if(!u) return;
+  if(checked&&!u.days.includes(di)) u.days.push(di);
+  if(!checked) u.days=u.days.filter(d=>d!==di);
+  saveState(); renderAll();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// スタッフ管理
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderStaffTable(){
+  const tb=document.getElementById('staffTableBody'); if(!tb) return;
+  tb.innerHTML='';
+  state.staff.forEach(s=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${esc(s.name)}</td>
+      <td><span class="staff-badge ${s.role==='driver'?'badge-driver':'badge-helper'}">${s.role==='driver'?'運転手':'添乗員'}</span></td>
+      <td><button class="btn btn-sm btn-danger" onclick="removeStaff('${s.id}')">削除</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+function addStaff(){
+  const name=document.getElementById('newStaffName').value.trim();
+  if(!name){ toast('氏名を入力してください'); return; }
+  const role=document.getElementById('newStaffRole').value;
+  state.staff.push({id:'s'+Date.now(),name,role});
+  document.getElementById('newStaffName').value='';
+  saveState(); renderAll(); toast('スタッフを追加しました');
+}
+function removeStaff(id){
+  if(!confirm('削除しますか？')) return;
+  state.staff=state.staff.filter(s=>s.id!==id);
+  saveState(); renderAll();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 車両管理
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderVehicleTableSettings(){
+  const tb=document.getElementById('vehicleTableBody'); if(!tb) return;
+  tb.innerHTML='';
+  (state.vehicles||[]).forEach(v=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>🚗 ${esc(v.name)}</td><td>${esc(v.note||'')}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="removeVehicle('${v.id}')">削除</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+function addVehicle(){
+  const name=document.getElementById('newVehicleName').value.trim();
+  if(!name){ toast('車両名を入力してください'); return; }
+  const note=document.getElementById('newVehicleNote').value.trim();
+  if(!state.vehicles) state.vehicles=[];
+  const id='v'+Date.now();
+  state.vehicles.push({id,name,note});
+  if(!state.currentVehicle) state.currentVehicle=id;
+  document.getElementById('newVehicleName').value='';
+  document.getElementById('newVehicleNote').value='';
+  saveState(); renderAll(); toast('車両を追加しました');
+}
+function removeVehicle(id){
+  if(!confirm('削除しますか？配車情報も消えます。')) return;
+  state.vehicles=state.vehicles.filter(v=>v.id!==id);
+  Object.values(state.assignments).forEach(day=>
+    Object.values(day).forEach(sess=>{ delete sess[id]; })
+  );
+  if(state.currentVehicle===id) state.currentVehicle=state.vehicles[0]?.id||null;
+  saveState(); renderAll();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 設定
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function saveSetting(key,value){
+  if(!state.settings) state.settings={};
+  state.settings[key]=value; saveState();
+}
+function exportData(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`sougei_backup_${state.currentDate}.json`;
+  a.click(); toast('エクスポートしました');
+}
+function importData(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(!confirm('現在のデータを上書きしますか？')) return;
+      Object.assign(state,data); saveState(); renderAll();
+      document.getElementById('settingFacilityName').value=state.settings?.facilityName||'';
+      toast('インポートしました');
+    }catch(err){ toast('インポートに失敗しました'); }
+  };
+  reader.readAsText(file);
+}
+function clearAllData(){
+  if(!confirm('すべてのデータを削除しますか？この操作は取り消せません。')) return;
+  localStorage.removeItem('sougei_v3'); location.reload();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Excel取込
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function handleDrop(e){ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) processFile(f); }
+function handleFileInput(e){ const f=e.target.files[0]; if(f) processFile(f); }
+function processFile(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(rows.length<2){ toast('データが見つかりません'); return; }
+      let headerRow=0,nameCol=-1,dayCols=[-1,-1,-1,-1,-1];
+      for(let ri=0;ri<Math.min(5,rows.length);ri++){
+        const r=rows[ri].map(c=>String(c).trim());
+        const ni=r.findIndex(c=>c.includes('氏名')||c.includes('名前')||c==='名');
+        if(ni>=0){
+          headerRow=ri; nameCol=ni;
+          dayCols=['月','火','水','木','金'].map(d=>r.findIndex(c=>c.includes(d)));
+          break;
+        }
+      }
+      if(nameCol<0){ toast('「氏名」列が見つかりません'); return; }
+      const newUsers=[];
+      for(let ri=headerRow+1;ri<rows.length;ri++){
+        const row=rows[ri];
+        const name=String(row[nameCol]||'').trim(); if(!name) continue;
+        const days=dayCols.map((ci,i)=>{
+          if(ci<0) return null;
+          const v=String(row[ci]||'').trim();
+          return ['○','1','true','yes','◯','✓'].includes(v.toLowerCase())?i:null;
+        }).filter(d=>d!==null);
+        newUsers.push({id:'u'+Date.now()+ri,name,days});
+      }
+      const preview=document.getElementById('importPreview');
+      preview.innerHTML=`<div class="alert alert-success">${newUsers.length}名を読み込みました。</div>
+        <table class="data-table" style="margin-bottom:10px;">
+          <thead><tr><th>氏名</th>${DAY_NAMES.map(d=>`<th>${d}</th>`).join('')}</tr></thead>
+          <tbody>${newUsers.map(u=>`<tr><td>${esc(u.name)}</td>${DAY_NAMES.map((_,i)=>`<td style="text-align:center">${u.days.includes(i)?'○':''}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+        <button class="btn btn-primary" onclick='importUsers(${JSON.stringify(newUsers)})'>✅ 追加取込</button>
+        <button class="btn btn-warn" style="margin-left:8px;" onclick='importUsers(${JSON.stringify(newUsers)},true)'>🔄 上書き取込</button>`;
+    }catch(err){ toast('読み込みエラー: '+err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function importUsers(newUsers,overwrite){
+  if(overwrite) state.users=newUsers;
+  else newUsers.forEach(u=>{ if(!state.users.find(x=>x.name===u.name)) state.users.push(u); });
+  saveState(); renderAll();
+  document.getElementById('importPreview').innerHTML='<div class="alert alert-success">✅ 取込完了しました</div>';
+  toast('利用者データを取込みました');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// QR共有
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function showQRModal(){
+  const sess=state.currentSession;
+  const viewData={
+    date:state.currentDate,
+    session:sess,
+    sessLabel:sess==='morning'?'朝送迎':'夕送迎',
+    facility:state.settings?.facilityName||'',
+    vehicles:state.vehicles.map(v=>{
+      const a=getAssignment(v.id);
+      return{
+        name:v.name, note:v.note||'',
+        driver:a.driver?staffName(a.driver):null,
+        helper:a.helper?staffName(a.helper):null,
+        passengers:a.passengers.filter(p=>!a.absent.includes(p)).map(uid=>state.users.find(x=>x.id===uid)?.name||'').filter(Boolean),
+        absent:a.absent.map(uid=>state.users.find(x=>x.id===uid)?.name||'').filter(Boolean),
+      };
+    })
+  };
+  const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(viewData))));
+  const url=location.href.replace(/[?#].*$/,'')+'#view='+encoded;
+  document.getElementById('shareURL').textContent=url.length>220?url.slice(0,220)+'…':url;
+  document.getElementById('qrcode').innerHTML='';
+  document.getElementById('qrModal').style.display='flex';
+  setTimeout(()=>{
+    try{
+      new QRCode(document.getElementById('qrcode'),{
+        text:url,width:200,height:200,
+        colorDark:sess==='morning'?'#085041':'#3D2880',
+        colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M
+      });
+    }catch(e){
+      document.getElementById('qrcode').innerHTML='<div style="font-size:12px;color:var(--c-text-muted);">URLをコピーして共有してください</div>';
+    }
+  },50);
+}
+function hideQRModal(e){
+  if(!e||e.target===document.getElementById('qrModal')) document.getElementById('qrModal').style.display='none';
+}
+function copyShareURL(){
+  navigator.clipboard.writeText(document.getElementById('shareURL').textContent).then(()=>toast('URLをコピーしました'));
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 閲覧ビューア
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function checkViewerMode(){
+  if(!location.hash.startsWith('#view=')) return;
+  try{
+    const data=JSON.parse(decodeURIComponent(escape(atob(location.hash.slice(6)))));
+    renderViewer(data);
+  }catch(e){ document.body.innerHTML='<div style="padding:20px;color:red;">データの読み込みに失敗しました</div>'; }
+}
+function renderViewer(data){
+  const isE=data.session==='evening';
+  const tc=isE?'#6B48C8':'#1D9E75';
+  const tbg=isE?'#EDE8FA':'#E1F5EE';
+  const td=isE?'#3D2880':'#085041';
+  document.body.innerHTML=`
+  <div style="max-width:600px;margin:0 auto;padding:14px;font-family:'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;background:#f4f5f7;min-height:100vh;">
+    <div style="background:${tbg};border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+      <span style="font-size:26px;">${isE?'🌇':'🌅'}</span>
+      <div>
+        <div style="font-weight:700;font-size:16px;color:${td};">${esc(data.facility||'送迎表')}　${esc(data.sessLabel||'')}</div>
+        <div style="font-size:12px;color:${tc};">${esc(data.date)}</div>
+      </div>
+      <div style="margin-left:auto;font-size:10px;color:#aaa;background:#fff;padding:2px 8px;border-radius:6px;">閲覧専用</div>
+    </div>
+    ${(data.vehicles||[]).map(v=>`
+      <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;margin-bottom:10px;overflow:hidden;">
+        <div style="background:${tbg};padding:9px 14px;display:flex;align-items:center;gap:8px;">
+          <span style="font-weight:700;color:${td};font-size:14px;">🚗 ${esc(v.name)}</span>
+          ${v.note?`<span style="font-size:11px;color:${td};opacity:.7;">${esc(v.note)}</span>`:''}
+          <span style="margin-left:auto;font-size:11px;color:${tc};">乗車 ${v.passengers.length}名</span>
+        </div>
+        <div style="padding:7px 14px;background:#fafffe;border-bottom:1px solid #eee;font-size:12px;display:flex;gap:14px;">
+          <span><span style="color:#888;">運転手:</span> <b>${v.driver?esc(v.driver):'未設定'}</b></span>
+          <span><span style="color:#888;">添乗員:</span> <b>${v.helper?esc(v.helper):'未設定'}</b></span>
+        </div>
+        <div style="padding:9px 14px;display:flex;flex-wrap:wrap;gap:5px;">
+          ${v.passengers.map((n,i)=>`<span style="background:${tbg};color:${td};padding:4px 11px;border-radius:18px;font-size:13px;display:inline-flex;align-items:center;gap:4px;"><span style="font-size:10px;background:#fff;border-radius:8px;padding:0 4px;color:#888;">${i+1}</span>${esc(n)}</span>`).join('')}
+          ${v.absent.map(n=>`<span style="background:#FCEBEB;color:#A32D2D;padding:4px 11px;border-radius:18px;font-size:13px;text-decoration:line-through;">${esc(n)} 欠席</span>`).join('')}
+          ${!v.passengers.length&&!v.absent.length?'<span style="color:#ccc;font-size:12px;">未設定</span>':''}
+        </div>
+      </div>`).join('')}
+    <div style="text-align:center;font-size:11px;color:#ccc;margin-top:16px;padding-bottom:16px;">閲覧専用</div>
+  </div>`;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 印刷
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function printMode(mode){
+  const d=new Date(state.currentDate+'T00:00:00');
+  const dateStr=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+  const sessLabel=state.currentSession==='morning'?'朝送迎':'夕送迎';
+  const modeLabel=mode==='driver'?'（運転手用）':'（事業所控え）';
+  const facility=state.settings?.facilityName||'';
+  document.getElementById('printTitle').textContent=`${facility?facility+'　':''}${dateStr}　${sessLabel}${modeLabel}`;
+  document.getElementById('printSubtitle').textContent=`印刷日時: ${new Date().toLocaleString('ja-JP')}`;
+  document.body.classList.toggle('print-driver',mode==='driver');
+  document.body.classList.toggle('print-office',mode==='office');
+  window.print();
+  setTimeout(()=>{
+    document.body.classList.remove('print-driver','print-office');
+    renderAllVehicleCards();
+  },800);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// タブ切替
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function switchTab(tab){
+  ['schedule','users','staff','import','settings'].forEach(t=>{
+    document.getElementById('tab-'+t)?.classList.toggle('active',t===tab);
+    const cel=document.getElementById('content'+t[0].toUpperCase()+t.slice(1));
+    if(cel) cel.style.display=(t===tab)?'':'none';
+  });
+  document.getElementById('sidebar').style.display=tab==='schedule'?'':'none';
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Toast
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+</script>
+</body>
+</html>
