@@ -146,7 +146,8 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000;}
 .modal{background:var(--c-surface);border-radius:12px;padding:22px;max-width:370px;width:92%;}
 .modal h3{font-size:16px;margin-bottom:12px;}
-.url-box{background:var(--c-gray-light);border-radius:6px;padding:8px 10px;font-size:11px;word-break:break-all;color:var(--c-text-muted);margin-bottom:10px;max-height:55px;overflow:hidden;}
+.url-box{background:var(--c-gray-light);border-radius:6px;padding:8px 10px;font-size:11px;word-break:break-all;color:var(--c-text-muted);margin-bottom:10px;max-height:90px;overflow-y:auto;}
+.url-textarea{width:100%;background:var(--c-gray-light);border:1px solid var(--c-border);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--c-text);margin-bottom:10px;max-height:90px;resize:vertical;font-family:monospace;word-break:break-all;}
 .modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
 
 /* ── Misc ── */
@@ -369,7 +370,7 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);}
     </div>
     <div id="qrcode" style="display:flex;justify-content:center;margin-bottom:10px;"></div>
     <div style="font-size:11px;color:var(--c-text-muted);margin-bottom:6px;" id="urlLengthInfo"></div>
-    <div class="url-box" id="shareURL"></div>
+    <textarea class="url-textarea" id="shareURL" readonly rows="3" onclick="this.select()" onfocus="this.select()"></textarea>
     <button class="btn" onclick="copyShareURL()">📋 URLをコピー</button>
     <div class="modal-footer"><button class="btn" onclick="hideQRModal()">閉じる</button></div>
   </div>
@@ -1136,7 +1137,7 @@ function refreshQR(){
   const url=buildShareURL(format);
   currentShareURL=url;
 
-  document.getElementById('shareURL').textContent=url.length>220?url.slice(0,220)+'…':url;
+  document.getElementById('shareURL').value=url;
   const lenInfo=document.getElementById('urlLengthInfo');
   lenInfo.textContent=`URL文字数: ${url.length}文字${url.length>1800?'　⚠️ 長すぎる場合、LINE等での共有に失敗することがあります':''}`;
   lenInfo.style.color = url.length>1800 ? 'var(--c-danger)' : 'var(--c-text-muted)';
