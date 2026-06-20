@@ -352,8 +352,23 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);}
 <div class="modal-backdrop" id="qrModal" style="display:none;" onclick="hideQRModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <h3>📱 添乗員スマホに共有</h3>
-    <p style="font-size:12px;color:var(--c-text-muted);margin-bottom:10px;">QRコードを読むと閲覧専用の送迎表が開きます。氏名は外部に送信されません。</p>
+    <p style="font-size:12px;color:var(--c-text-muted);margin-bottom:10px;">QRコードまたはURLを読むと閲覧専用の送迎表が開きます。データは外部サーバーに保存されません。</p>
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;color:var(--c-text-muted);margin-bottom:5px;font-weight:600;">表示名の形式（URLを短縮できます）</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;border:1px solid var(--c-border);border-radius:6px;padding:4px 9px;cursor:pointer;">
+          <input type="radio" name="nameFormat" value="full" onchange="refreshQR()"> フルネーム
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;border:1px solid var(--c-border);border-radius:6px;padding:4px 9px;cursor:pointer;">
+          <input type="radio" name="nameFormat" value="lastname" checked onchange="refreshQR()"> 苗字のみ
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;border:1px solid var(--c-border);border-radius:6px;padding:4px 9px;cursor:pointer;">
+          <input type="radio" name="nameFormat" value="initial" onchange="refreshQR()"> イニシャル
+        </label>
+      </div>
+    </div>
     <div id="qrcode" style="display:flex;justify-content:center;margin-bottom:10px;"></div>
+    <div style="font-size:11px;color:var(--c-text-muted);margin-bottom:6px;" id="urlLengthInfo"></div>
     <div class="url-box" id="shareURL"></div>
     <button class="btn" onclick="copyShareURL()">📋 URLをコピー</button>
     <div class="modal-footer"><button class="btn" onclick="hideQRModal()">閉じる</button></div>
@@ -1060,38 +1075,82 @@ function importUsers(newUsers,overwrite){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // QR共有
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function showQRModal(){
+let currentShareURL='';
+function shortenName(fullName, format){
+  if(!fullName) return '';
+  // 「姓 名」「姓　名」「姓-名」等を区切りとみなす。区切りがなければ先頭2文字を姓とみなす簡易対応。
+  const parts = fullName.trim().split(/[\s　]+/).filter(Boolean);
+  const last = parts[0] || fullName;
+  const first = parts[1] || '';
+  if(format==='lastname') return last;
+  if(format==='initial'){
+    const li = last.charAt(0);
+    const fi = first ? first.charAt(0) : '';
+    return fi ? `${li}.${fi}.` : `${li}.`;
+  }
+  return fullName; // full
+}
+
+function getNameFormat(){
+  const el=document.querySelector('input[name="nameFormat"]:checked');
+  return el ? el.value : 'lastname';
+}
+
+function buildShareURL(format){
   const sess=state.currentSession;
   const viewData={
     date:state.currentDate,
     session:sess,
     sessLabel:sess==='morning'?'朝送迎':'夕送迎',
     facility:state.settings?.facilityName||'',
+    nameFormat:format,
     vehicles:state.vehicles.map(v=>{
       const a=getAssignment(v.id);
       return{
         name:v.name, note:v.note||'',
-        driver:a.driver?staffName(a.driver):null,
-        helper:a.helper?staffName(a.helper):null,
-        passengers:a.passengers.filter(p=>!a.absent.includes(p)).map(uid=>state.users.find(x=>x.id===uid)?.name||'').filter(Boolean),
-        absent:a.absent.map(uid=>state.users.find(x=>x.id===uid)?.name||'').filter(Boolean),
+        driver:a.driver?shortenName(staffName(a.driver),format):null,
+        helper:a.helper?shortenName(staffName(a.helper),format):null,
+        passengers:a.passengers.filter(p=>!a.absent.includes(p)).map(uid=>{
+          const n=state.users.find(x=>x.id===uid)?.name||'';
+          return n?shortenName(n,format):'';
+        }).filter(Boolean),
+        absent:a.absent.map(uid=>{
+          const n=state.users.find(x=>x.id===uid)?.name||'';
+          return n?shortenName(n,format):'';
+        }).filter(Boolean),
       };
     })
   };
   const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(viewData))));
-  const url=location.href.replace(/[?#].*$/,'')+'#view='+encoded;
-  document.getElementById('shareURL').textContent=url.length>220?url.slice(0,220)+'…':url;
-  document.getElementById('qrcode').innerHTML='';
+  return location.href.replace(/[?#].*$/,'')+'#view='+encoded;
+}
+
+function showQRModal(){
+  refreshQR();
   document.getElementById('qrModal').style.display='flex';
+}
+
+function refreshQR(){
+  const sess=state.currentSession;
+  const format=getNameFormat();
+  const url=buildShareURL(format);
+  currentShareURL=url;
+
+  document.getElementById('shareURL').textContent=url.length>220?url.slice(0,220)+'…':url;
+  const lenInfo=document.getElementById('urlLengthInfo');
+  lenInfo.textContent=`URL文字数: ${url.length}文字${url.length>1800?'　⚠️ 長すぎる場合、LINE等での共有に失敗することがあります':''}`;
+  lenInfo.style.color = url.length>1800 ? 'var(--c-danger)' : 'var(--c-text-muted)';
+
+  document.getElementById('qrcode').innerHTML='';
   setTimeout(()=>{
     try{
       new QRCode(document.getElementById('qrcode'),{
         text:url,width:200,height:200,
         colorDark:sess==='morning'?'#085041':'#3D2880',
-        colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M
+        colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.L
       });
     }catch(e){
-      document.getElementById('qrcode').innerHTML='<div style="font-size:12px;color:var(--c-text-muted);">URLをコピーして共有してください</div>';
+      document.getElementById('qrcode').innerHTML='<div style="font-size:12px;color:var(--c-text-muted);">データ量が多すぎてQR化できません。表示名を「苗字のみ」または「イニシャル」にしてください。</div>';
     }
   },50);
 }
@@ -1099,7 +1158,7 @@ function hideQRModal(e){
   if(!e||e.target===document.getElementById('qrModal')) document.getElementById('qrModal').style.display='none';
 }
 function copyShareURL(){
-  navigator.clipboard.writeText(document.getElementById('shareURL').textContent).then(()=>toast('URLをコピーしました'));
+  navigator.clipboard.writeText(currentShareURL).then(()=>toast('URLをコピーしました')).catch(()=>toast('コピーに失敗しました。手動で選択してコピーしてください'));
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
